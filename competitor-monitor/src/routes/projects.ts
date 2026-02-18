@@ -1,8 +1,7 @@
 import { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { prisma } from "../lib/prisma";
-import { getQueue, QUEUE_NAMES } from "../lib/queue";
-import { DISCOVERY_JOB_NAME } from "../jobs/discovery.job";
+import { runDiscovery } from "../services/discovery";
 
 const createProjectSchema = z.object({
   name: z.string().min(1),
@@ -25,9 +24,8 @@ export async function projectRoutes(app: FastifyInstance): Promise<void> {
       },
     });
 
-    // Enqueue competitor discovery
-    const queue = getQueue(QUEUE_NAMES.DISCOVERY);
-    await queue.add(DISCOVERY_JOB_NAME, {
+    // Run competitor discovery inline (works in both standalone and serverless)
+    await runDiscovery({
       projectId: project.id,
       companyDomain: body.companyDomain,
       keywords: body.keywords,

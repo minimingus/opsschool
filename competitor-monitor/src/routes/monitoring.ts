@@ -1,20 +1,36 @@
 import { FastifyInstance } from "fastify";
 import { prisma } from "../lib/prisma";
-import { getQueue, QUEUE_NAMES } from "../lib/queue";
-import { MONITOR_ALL_JOB, MONITOR_PAGE_JOB } from "../jobs/monitoring.job";
+import { monitorAllActivePages } from "../services/monitor";
+import { getEnv } from "../config/env";
 
 export async function monitoringRoutes(app: FastifyInstance): Promise<void> {
-  // Trigger monitoring for all active pages (manual trigger)
+  // Trigger monitoring for all active pages.
+  // Supports both:
+  //   - Vercel Cron (GET with Authorization: Bearer <CRON_SECRET>)
+  //   - Manual trigger (POST)
+  app.get("/monitoring/run", async (req, reply) => {
+    const cronSecret = getEnv().CRON_SECRET;
+    if (cronSecret) {
+      const auth = req.headers.authorization;
+      if (auth !== `Bearer ${cronSecret}`) {
+        return reply.status(401).send({ error: "Unauthorized" });
+      }
+    }
+
+    await monitorAllActivePages();
+    return { ok: true, message: "Monitoring run complete" };
+  });
+
   app.post("/monitoring/run", async (_req, reply) => {
-    const queue = getQueue(QUEUE_NAMES.MONITORING);
-    await queue.add(MONITOR_ALL_JOB, {});
-    return reply.status(202).send({ ok: true, message: "Monitoring job queued" });
+    await monitorAllActivePages();
+    return reply.status(200).send({ ok: true, message: "Monitoring run complete" });
   });
 
   // Trigger monitoring for a single page
   app.post<{ Params: { pageId: string } }>(
     "/monitoring/pages/:pageId/run",
     async (req, reply) => {
+      const { monitorPage } = await import("../services/monitor");
       const page = await prisma.trackedPage.findUnique({
         where: { id: req.params.pageId },
       });
@@ -23,14 +39,8 @@ export async function monitoringRoutes(app: FastifyInstance): Promise<void> {
         return reply.status(404).send({ error: "Page not found" });
       }
 
-      const queue = getQueue(QUEUE_NAMES.MONITORING);
-      await queue.add(MONITOR_PAGE_JOB, {
-        trackedPageId: req.params.pageId,
-      });
-
-      return reply
-        .status(202)
-        .send({ ok: true, message: "Page monitoring job queued" });
+      await monitorPage(page.id);
+      return reply.status(200).send({ ok: true, message: "Page monitored" });
     }
   );
 

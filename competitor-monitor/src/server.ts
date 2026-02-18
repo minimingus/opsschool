@@ -1,23 +1,11 @@
-import Fastify from "fastify";
 import { getEnv } from "./config/env";
-import { projectRoutes } from "./routes/projects";
-import { competitorRoutes } from "./routes/competitors";
-import { monitoringRoutes } from "./routes/monitoring";
+import { buildApp } from "./app";
 import { getQueue, QUEUE_NAMES } from "./lib/queue";
 import { MONITOR_ALL_JOB } from "./jobs/monitoring.job";
 
 async function main() {
   const env = getEnv();
-
-  const app = Fastify({ logger: true });
-
-  // Health check
-  app.get("/health", async () => ({ status: "ok" }));
-
-  // Register route modules
-  await app.register(projectRoutes);
-  await app.register(competitorRoutes);
-  await app.register(monitoringRoutes);
+  const app = await buildApp();
 
   // Set up daily monitoring cron via BullMQ repeatable job
   const monitorQueue = getQueue(QUEUE_NAMES.MONITORING);

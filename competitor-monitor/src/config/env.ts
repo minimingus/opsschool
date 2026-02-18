@@ -2,9 +2,11 @@ import { z } from "zod";
 
 const envSchema = z.object({
   DATABASE_URL: z.string(),
+  DIRECT_DATABASE_URL: z.string().optional(),
   REDIS_URL: z.string().default("redis://localhost:6379"),
   PORT: z.coerce.number().default(3000),
   HOST: z.string().default("0.0.0.0"),
+  CRON_SECRET: z.string().optional(),
   CHANGE_SCORE_THRESHOLD: z.coerce.number().default(0.05),
   // Email config (stub for v1)
   SMTP_HOST: z.string().optional(),
